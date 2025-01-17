@@ -1,0 +1,2136 @@
+---
+title: "Avoir des enfants ou pas : une analyse des facteurs décisifs en France (1991-2019)"
+author: 
+  - name : "Romain Fehri"
+ 
+date: "2024-12-20"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r starting point, include=FALSE}
+
+library(readxl)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(writexl)
+library(tseries) # pour adf.test
+
+# Charger les données
+
+data <- read_excel("//Users/mehdifehri/Desktop/R/Données/Data R Ajustée.xlsx") %>%
+  rename_with(~ gsub("-", "_", .), everything()) %>%
+  # Suppression de certaines variables jugées non pertinantes
+   select(-fem, -sco_jeune, -pop, -parc_logement, -confiance_menage, -agemat, -solo, -opi_niveau_vie,
+         -tailleMenage, -consoalcool, -opi_surpoids, - opi_nervosite, -deficit, -viedans5,
+         -inegalité_w_privée, -chomagefem, -opi_inquietude, -tpspartiel,
+         -cadre_vie,-opi_guerre, -wage_h, -opi_env, -synthé_Oiseau)
+
+```
+
+# I. Introduction
+## I.1. Choix de la variable dépendante
+
+<br>
+
+La dynamique démographique joue un rôle central dans le **développement économique** et **hégémonique des nations**. Elle influence non seulement la taille et la structure de la population active, mais également la **viabilité des systèmes sociaux** tels que les retraites, tout en façonnant les **perspectives d’avenir d’une société**. Une population en croissance est souvent perçue comme un moteur d’*innovation*, de *consommation* et de *prospérité économique*, tandis qu’un déclin démographique peut engendrer des défis majeurs, notamment le **vieillissement de la population**, la contraction de la main-d'œuvre et un **pessimisme collectif** quant à l’avenir.
+
+En France, cette problématique prend une acuité particulière. En **2023**, *678 000 enfants* sont nés, marquant un record historique de **faible natalité** depuis *1938*, en dehors des périodes de guerre. Cette baisse, inquiétante par son ampleur et sa persistance, a conduit **Emmanuel Macron** à évoquer la nécessité d’un *«réarmement démographique»*, illustrant l’urgence perçue au plus haut niveau de l’État. Ce débat dépasse les seules questions statistiques: il touche au cœur des **politiques publiques** et des **choix de société**.
+
+Face à cette situation, nous avons décidé d’explorer les causes de ce phénomène en étudiant les ***déterminants de la baisse de la natalité en France***. Comprendre ces facteurs est crucial pour anticiper les défis économiques et sociaux de demain, qu’il s’agisse de garantir la pérennité du système de retraite, d’éviter une baisse de la productivité, ou encore de raviver l’**optimisme quant à l’avenir de la nation**.
+
+Dans un premier temps, nous nous sommes penchés sur le 'taux de natalité', soit le nombre de naissances rapporté à la population totale. Cependant, nos premières analyses économétriques ont révélé que cette variable est principalement influencée par des *dynamiques démographiques globales*.
+
+C’est pourquoi nous avons orienté notre étude vers le 'taux de fécondité', *une mesure plus précise et significative, qui rapporte le nombre de naissances au nombre de femmes en âge de procréer. Ce choix nous permet de mieux cerner les véritables moteurs de la fécondité et d’identifier les **leviers potentiels** pour inverser cette tendance.
+
+<br>
+
+```{r fec, echo=FALSE, warning=FALSE}
+print(
+  ggplot(data, aes_string(x = "Temps", y = "fec")) +
+    geom_line(color = "blue") +
+    labs(title = paste("Variation du taux de fécondité de 1991 à 2020"), x = "Temps", y = "fec")
+)
+numeric_cols <- setdiff(colnames(data), c("Temps", "fec"))
+
+```
+
+<br>
+
+*Nous avons sélectionné la période pour laquelle nous disposions du plus grand nombre de données, soit de 1991 à 2019. Nous avons délibérément exclu l'année 2020, car la crise du COVID-19 a eu un impact significatif sur le taux de fécondité, rendant cette année atypique pour notre analyse.*
+
+<br>
+
+## I.2. Les variables explicatives
+
+<br>
+
+Nous nous sommes d'abord concertés pour déterminer toutes les varaibles qui pourraient potentiellement expliquer ou être corrélées avec le taux de fécondité, organisées en 5 catégories :
+
+  - Facteurs socio-culturels
+  
+  - Facteurs démographiques et biologiques
+  
+  - Facteurs économiques et politiques
+  
+  - Facteurs liés au travail et à l'éducation
+  
+  - Facteurs individuels et comportementaux
+
+Nous avons réuni **37 variables explicatives**.
+
+Nous avons sélectionné les plus **pertinantes**. Mais nous verrons cela en détail dans la partie 3.
+
+<br>
+
+**Finalement, nous avons retenues les variables suivantes** :
+
+  - 'Tx_emploifem' : Taux d'emmplois des femmes au sens de l'INSEE
+
+  - 'Tx_emploi_flex_fem' : taux d'emplois précaire (CDD, stage, intérim etc..) 
+  
+  - 'opi_passé_niv_vie' : sentiment que, depuis une dizaine d'années, son niveau de vie s'améliore
+  
+  - 'bourse' : évolution du cours des actions du CAC40 en indice base 100, 2015
+  
+  - 'opi_insécurité' : part d'individus (18-24 ans) vivant dans l'inquiétude vis-à-vis de risque d'agression dans la rue
+  
+  - 'opi_future_niv_vie' : opinion sur le niveau de vie futur en France
+  
+  - 'opi_inflation' : opinion sur l'évolution future des prix (positive = hausse des anticipations)
+  
+  - 'loyers' : évolution de l'indice des prix des loyers en indice base 100, 2019
+  
+  - 'nuptialite' : nombre de mariages pour 1000 personnes
+  
+  - 'spepro_cadrefemmes' : part des femmes cadres dans l'emplois total des femmes
+  
+  - 'IVG_100' : nombre d'IVG pour 100 naissances
+  
+  - 'études_sup' : proportion de la population ayant poursuivie des études supérieures au bac
+  
+  <br>
+  
+  *Sources : INSEE, DREES, OCDE, INED, EUROSTAT, CRÉDOC*
+  
+
+## I.3. Enseignements de nos premières regressions
+
+<br>
+Dès les premières régressions que nous avons réalisées, deux principaux problèmes sont apparus : la présence de **l'hétéroscédasticité** et de l'**autocorrélation**.
+
+Dans la suite du code, nous avons concentré nos efforts sur la réduction de ces problèmes.
+
+<br>
+
+--- 
+
+<br>
+
+# II. Premier traitement de nos variables explicatives
+
+<br>
+
+---
+
+## II.1. Interpolation linéaire des années (1991 - 2019) et création des variables explicatives décalées `lag`
+
+
+Nous avons augmenté le nombre d’observations (initialement limité à 29, correspondant aux nombres d'années étudiées) en désagrégeant les données annualisées de la variable temporelle pour générer une séquence trimestrielle couvrant la période 1991-2019.
+
+Les valeurs manquantes des variables numériques ont été imputées à l’aide d’une interpolation linéaire, estimant les données manquantes en se basant sur les observations existantes. Cette étape a permis d’obtenir un jeu de données uniforme et cohérent sur l’ensemble de la période analysée, sans altérer la relation linéaire inhérente aux données.
+
+
+Ensuite, nous avons utilisé une fonction `lag`pour créer des variables décalées, en considérant que les naissances à une période donnée *(t)* sont influencées par les décisions individuelles et par leur propre niveau à la période précédente *(t-1)*. Cette hypothèse repose principalement sur le fait qu’une gestation dure environ **9 mois**, ce qui implique un effet différé des facteurs explicatifs d’une année sur les naissances de l’année suivante.
+
+<br>
+
+```{r , include=FALSE}
+
+numeric_cols <- setdiff(colnames(data), "Temps")
+
+
+
+```
+
+```{r interpolation, include= TRUE, warning=FALSE}
+## Interpolation trimestrielle et création des variables décalées (lags)
+data_clean <- data %>%
+  complete(Temps = seq(min(Temps), max(Temps), by = 0.25)) %>%
+  mutate(across(all_of(numeric_cols),
+                ~ approx(Temps[!is.na(.)], .[!is.na(.)], xout = Temps)$y)) %>%
+  arrange(Temps) %>%
+  mutate(across(setdiff(numeric_cols, "fec"), ~ lag(., n = 4), .names = "lag_{col}")) %>%
+  drop_na(starts_with("lag_"))
+
+data_work <- data_clean %>%
+  select(Temps, fec, starts_with("lag_"))
+
+```
+
+```{r , include=FALSE}
+
+# Sauvegarder le DataFrame intermédiaire
+write_xlsx(data_work, "//Users/mehdifehri/Desktop/R/Code Final Fec/Data_Work.xlsx")
+cat("Le fichier 'Data_Work.xlsx' a été sauvegardé après l'interpolation et le lag.\n")
+
+#préparation des variables instrumentales candidates (condition nécessaire pour les pb d'endogénéités)
+Variables_instrumentales <- data_work %>% select(Temps, lag_opi_depression, lag_depseniors, lag_lt_interest_rate, 
+                                                 lag_opi_famille, lag_opi_work_fem, lag_pib_hab, lag_acceuilenf, lag_opi_affaires, lag_pa_synthé)
+
+# Mise à jour de `data_work` en supprimant les variables instrumentales
+data_work <- data_work %>% select(-c(lag_opi_depression, lag_depseniors, lag_lt_interest_rate, lag_opi_famille, lag_opi_work_fem,
+                                     lag_pib_hab, lag_acceuilenf, lag_opi_affaires, lag_pa_synthé))
+
+# Sauvegarder les résultats
+write_xlsx(data_work, "//Users/mehdifehri/Desktop/R/Code Final Fec/Data_Work.xlsx")
+write_xlsx(Variables_instrumentales, "//Users/mehdifehri/Desktop/R/Code Final Fec/Variables_Instrumentales.xlsx")
+
+library(dplyr)
+rm(data)
+rm(data_clean)
+```
+
+___ 
+
+## II.2. Stationarisation de la serie chronologique 
+
+
+Nous avons transformé notre série chronologique en une série **stationnaire** via les méthodes de *détrendisation* et *différenciation*. Cette étape stabilise les propriétés statistiques (variance, moyenne, covariance), réduit les risques l’hétéroscédasticité et élimine les biais liés aux tendances temporelles. Elle permet de mieux cibler les fluctuations à court terme, souvent plus pertinentes, et constitue une condition nécessaire pour appliquer des méthodes robustes comme *GLS*, *ARIMA* ou encore les ajustements de *Newey-West*.
+
+<br>
+
+## Visualisation de la tendance 
+
+```{r détrendisation1, include=FALSE, warning=FALSE}
+# 2. Définir les variables explicatives : toutes sauf "fec" et "Temps"
+vars_explicatives <- setdiff(colnames(data_work), c("fec", "Temps"))
+
+```
+
+```{r détrendisation2, include=TRUE, warning=FALSE}
+# 3. Visualiser la variable fec dans le Temps
+plot(data_work$Temps, data_work$fec, type = "l",
+     main = "Série temporelle de fec (brute)",
+     xlab = "Temps", ylab = "fec", col = "blue")
+
+# 4. Estimation de la tendance linéaire
+modele_tendance <- lm(fec ~ Temps, data = data_work)
+tendance_estimee <- fitted(modele_tendance)
+
+# Ajout de la tendance sur le graphique
+lines(data_work$Temps, tendance_estimee, col = "red", lwd = 2)
+title(sub = "La ligne rouge représente la tendance estimée")
+```
+```{r test ADF : serie brute, include=TRUE, warning=FALSE}
+# 5. Test ADF sur la série brute fec
+cat("\n--- Test ADF sur la série brute (fec) ---\n")
+adf_result_fec <- adf.test(data_work$fec, alternative = "stationary")
+print(adf_result_fec)
+if (adf_result_fec$p.value < 0.05) {
+  cat("\nInterprétation : La série brute 'fec' est stationnaire (H₀ rejetée).\n")
+} else {
+  cat("\nInterprétation : La série brute 'fec' n'est pas stationnaire (H₀ non rejetée).\n")
+}
+```
+
+```{r détrendisation vs différenciation, include=TRUE, warning=FALSE}
+#  Dé-trending de la série brute
+data_work$fec_detrend <- data_work$fec - tendance_estimee
+
+#  Différenciation directe de la série brute
+data_work$fec_diff <- c(NA, diff(data_work$fec))
+
+# Test ADF sur la série détrendue
+cat("\n--- Test ADF sur la série détrendue (fec_detrend) ---\n")
+adf_result_detrend <- adf.test(data_work$fec_detrend, alternative = "stationary")
+print(adf_result_detrend)
+
+# Test ADF sur la série brute différenciée
+cat("\n--- Test ADF sur la série brute différenciée (fec_diff) ---\n")
+adf_result_fec_diff <- adf.test(na.omit(data_work$fec_diff), alternative = "stationary")
+print(adf_result_fec_diff)
+```
+<br>
+
+Comme nous pouvons l'observer, **seule la série brute différenciée est stationnaire**, celle ci correspond à la variation absolue du taux de fécondité d'une année sur l'autre.
+
+**Cependant, interpréter ces variations en termes absolus a peu de sens d’un point de vue économique**. C’est pourquoi nous privilégions une approche en termes de variations relatives, autrement dit, le taux de croissance du taux de fécondité d’une année à l’autre.
+
+La transformation de notre variable dépendante en taux de croissance présente deux principaux avantages :
+
+- Une interprétation plus intuitive : elle permet une lecture en termes de semi-élasticité, facilitant ainsi l’analyse.
+- Stationnarisation de la série : cette transformation rend la série stationnaire, ce qui la rend adaptée à l’utilisation de solutions spécifiques pour traiter les problèmes d’autocorrélation et d’hétéroscédasticité.
+
+<br>
+
+```{r transformation de y : variation relative, include=TRUE}
+# 9. Créer data_work_trend avec les variables nécessaires
+# Inclure toutes les variables (Temps, fec, fec_detrend, fec_diff et création de fec_diff_relative)
+data_work_trend <- data.frame(
+  Temps = data_work$Temps,
+  fec = data_work$fec,
+  fec_detrend = data_work$fec_detrend,
+  fec_diff = data_work$fec_diff
+) %>%
+  mutate(fec_var_relative = fec_diff / fec) # Ajouter fec_diff_relative
+```
+
+```{r transformation de y, include=FALSE}
+
+# Ajouter les variables explicatives
+for (var in vars_explicatives) {
+  data_work_trend[[var]] <- data_work[[var]]
+}
+
+# 10. Nettoyer le data_work_trend pour supprimer les lignes avec des NA
+data_work_trend <- data_work_trend[complete.cases(data_work_trend), ]
+
+# 11. Créer le dataframe fec_transformed (sans variables explicatives)
+# On garde que Temps, fec, fec_detrend, fec_detrend_diff, fec_diff
+fec_transformed <- data_work_trend[, c("Temps", "fec", "fec_detrend", "fec_diff","fec_var_relative")]
+
+```
+
+```{r plot Y transformée, include=TRUE}
+# Superposer fec_detrend_diff et fec_diff sur un seul graphique avec un label en bas
+plot(data_work_trend$Temps, data_work_trend$fec_diff, type = "l", col = "green",
+     main = "Fec différenciée",
+     xlab = "Temps", ylab = "Variation de y", lwd = 2)
+```
+
+Ainsi, nous allons pouvoir développer un modèle visant à expliquer les variations annuelles du taux de fécondité, tout en excluant la part de cette évolution directement attribuable à la tendance de long terme.
+
+Cependant, une question demeure : **quelle proportion du taux de fécondité peut être expliquée par des phénomènes purement tendanciels, et quelle part reste inexpliquée ?**
+
+<br>
+
+```{r Tendance, include=TRUE}
+# 1. Modèle : notre variable Fec expliquée par la tendance ? 
+modele_fec_vs_detrend <- lm(fec ~ fec_detrend, data = data_work_trend)
+r2_fec_vs_detrend <- summary(modele_fec_vs_detrend)$r.squared
+cat(sprintf("- Fec expliquée par Fec_detrend : %.2f%%\n", r2_fec_vs_detrend * 100))
+```
+
+<br>
+
+**50,88 % de l'évolution du taux de fécondité en France est attribuable à une tendance de long terme**, dont l'interprétation reste complexe. Cette tendance peut refléter des changements structurels dans la société, tels que des évolutions culturelles, des transformations économiques, ou des modifications profondes dans les comportements face à la natalité. Cependant, ces facteurs ne permettent pas à eux seuls de comprendre pleinement les dynamiques en jeu.
+
+C’est pourquoi cette étude s’est concentrée sur les **49,22 % restants de la variation du taux de fécondité**, qui ne sont pas expliqués par cette tendance de long terme. Ces variations sont susceptibles d’être influencées par des déterminants conjoncturels plus immédiats, tels que :
+
+- Les politiques publiques (*allocations familiales, congés parentaux*),
+- Les fluctuations économiques (*chômage, pouvoir d’achat*),
+- Ou encore des événements exceptionnels (*crises, changements démographiques régionaux*).
+
+<br>
+
+L’analyse de ces facteurs permet de mieux cerner les **leviers** qui influence l'évolution du taux de fécondité en France. 
+
+
+```{r Tendance 2, include=FALSE}
+
+# Ajuster le dataframe data_work_trend
+data_work_trend <- data_work_trend %>%
+  select(Temps, fec_var_relative, everything(), -fec, -fec_detrend, -fec_diff) # Réorganiser et supprimer les colonnes inutiles
+
+write_xlsx(data_work_trend, "//Users/mehdifehri/Desktop/R/Code Final Fec/Data_Work_trend.xlsx")
+
+
+rm(adf_result_detrend)
+rm(adf_result_fec)
+rm(adf_result_fec_diff)
+rm(data_work)
+rm(modele_fec_vs_detrend)
+rm(modele_tendance)
+rm(fec_transformed)
+
+```
+
+---
+
+## II.3. Création d’un jeu de données sans les outliers (avant première regression)
+
+Avant de réaliser notre première régression, nous avons choisi de **supprimer les outliers** afin de garantir des résultats plus robustes. Pour ce faire, nous avons **standardisé les données** afin d'identifier les valeurs aberrantes de manière cohérente, puis éliminé les observations dépassant un seuil de **2 écarts-types**.
+
+Cette démarche présente plusieurs avantages :  
+- Elle réduit l’**influence disproportionnée des valeurs extrêmes** sur les coefficients estimés.  
+- Elle améliore la fiabilité des résultats en respectant mieux les **hypothèses des régressions OLS**, notamment l’**homoscédasticité** et la **normalité des résidus**.  
+
+
+Cependant, cette méthode comporte également un inconvénient notable :  
+- Elle réduit la taille de l’échantillon en supprimant des observations, ce qui peut entraîner une **perte d’information utile** dans certains cas.
+
+
+En dépit de cette limitation, nous avons jugé que l’impact positif de cette étape sur la robustesse des résultats justifiait son adoption dans notre analyse.
+
+<br>
+
+
+```{r standardisation, include=TRUE}
+# Renommer 'fec_diff_relative' en 'fec'
+data_work_trend <- data_work_trend %>%
+  rename(fec = fec_var_relative)
+
+# 1. Modèle standardisé (centré et réduit)
+data_model_standardized <- data_work_trend %>%
+  mutate(across(starts_with("lag_"), ~ scale(.)))
+
+model_standardized <- lm(fec ~ . - Temps, data = data_model_standardized)
+# Étape 2 : Calculer les résidus bruts et standardisés
+residuals_standardized_df <- data.frame(
+  Index = seq_len(nrow(data_work_trend)),
+  Resid = residuals(model_standardized),      # Résidus bruts
+  Std_Resid = rstandard(model_standardized),  # Résidus standardisés
+  Temps = data_work_trend$Temps,
+  fec = data_work_trend$fec
+)
+```
+
+```{r visualisation des potentiels outliers, include=TRUE}
+threshold_zoom <- 3
+plot_residus_standardises <- ggplot(residuals_standardized_df %>% filter(abs(Std_Resid) <= threshold_zoom)) +
+  geom_point(aes(x = Index, y = Std_Resid), color = "blue") +
+  geom_hline(yintercept = c(-1, 1), color = "red", linetype = "dashed") +
+  labs(
+    title = "Résidus Standardisés (Zoomé)",
+    x = "Index d'observation",
+    y = "Résidus standardisés"
+  ) +
+  theme_minimal()
+
+print(plot_residus_standardises)
+
+```
+
+``` {r outliers, include=TRUE}
+# Étape 5 : Identifier les outliers
+threshold <-3   # Seuil pour identifier les outliers
+outliers_standardized_df <- residuals_standardized_df %>%
+  filter(abs(Std_Resid) > threshold)
+
+cat("\n### Résumé des outliers identifiés ###\n")
+print(outliers_standardized_df)
+
+```   
+
+<br>
+
+Au total, **Aucune observations ont été supprimées.**
+
+<br>
+
+---
+
+```{r outliers1, include=FALSE}
+# Étape 6 : Créer un nouveau DataFrame sans les outliers (`data_work2`)
+
+data_work2 <- data_work_trend %>%
+  mutate(Index = seq_len(nrow(data_work_trend))) %>%
+  filter(!Index %in% outliers_standardized_df$Index) %>%
+  select(-Index)
+
+# Étape 7 : Tableau récapitulatif des outliers
+recap_outliers <- outliers_standardized_df %>%
+  select(Temps, fec, Std_Resid)
+
+# Sauvegarder les résultats finaux
+write_xlsx(data_work2, "//Users/mehdifehri/Desktop/R/Code Final Fec/Data_Work2.xlsx")
+write_xlsx(recap_outliers, "//Users/mehdifehri/Desktop/R/Code Final Fec/Recap_Outliers.xlsx")
+
+rm(recap_outliers)
+rm(model_standardized)
+rm(outliers_standardized_df)
+rm(residuals_standardized_df)
+```
+
+# III. Tri des variables explicatives - Réduction des colinéarités
+
+<br>
+Nous avons vérifié la présence de **relations linéaires parfaites** entre les variables explicatives et avons supprimé les **variables redondantes**. Sans cette étape, certains coefficients ne seraient pas identifiables, ce qui poserait un **problème d’estimation**.
+
+Cette vérification, réalisée après le nettoyage des données, est cruciale pour:
+- **Éviter les blocages mathématiques** dans la régression,  
+- Garantir une **estimation stable**,  
+- Et permettre une **interprétation claire** des coefficients.
+
+Cette approche assure que notre modèle économétrique reste fiable et robuste, même dans des conditions où les variables explicatives présentent des interdépendances.
+
+
+## III.1. Détection et traitement de la colinéarité parfaite (alias)
+
+
+```{r alias, include=TRUE, warning=FALSE}
+
+model_alias <- lm(fec ~ ., data = data_work2 %>% select(-Temps))
+alias_info <- alias(model_alias)
+alias_matrix <- alias_info$Complete  # Matrice de colinéarités parfaites
+
+# Vérifier si des alias existent
+if (is.null(alias_matrix)) {
+  cat("Aucune colinéarité parfaite détectée dans le modèle.\n")
+} else {
+  # Étape 4 : Identifier les variables colinéaires
+  alias_pairs <- which(alias_matrix != 0, arr.ind = TRUE)
+  
+  # Extraire les noms des variables impliquées dans les colinéarités
+  alias_summary <- data.frame(
+    Variable_1 = rownames(alias_matrix)[alias_pairs[, 1]],
+    Variable_2 = colnames(alias_matrix)[alias_pairs[, 2]]
+  ) %>%
+    distinct()
+  
+  # Afficher la liste des colinéarités parfaites
+  cat("Colinéarités parfaites détectées :\n")
+  print(alias_summary)
+}
+```
+
+```{r}
+alias_vars <- rownames(alias_info$Complete)
+cat("Variables impliquées dans les alias avec l'intercept :\n")
+print(alias_vars)
+```
+
+
+```{r alias3, include=FALSE}
+# Étape 7 : Supprimer les variables alias et créer un nouveau DataFrame `data_work3`
+data_work3 <- data_work2 %>%
+  select(-all_of(alias_vars))
+
+# Étape 8 : Sauvegarder le DataFrame mis à jour
+write_xlsx(data_work3, "//Users/mehdifehri/Desktop/R/Code Final Fec/Data_Work3.xlsx")
+cat("Le nouveau DataFrame sans alias a été sauvegardé sous 'Data_Work3.xlsx'.\n")
+
+# Étape 9 : Résumer les variables supprimées
+removed_variables_summary <- data.frame(Variables_Supprimées = alias_vars)
+write_xlsx(removed_variables_summary, "//Users/mehdifehri/Desktop/R/Code Final Fec/Removed_Variables_Alias.xlsx")
+cat("Résumé des variables supprimées enregistré sous 'Removed_Variables_Alias.xlsx'.\n")
+
+rm(data_work2)
+rm(alias_info)
+rm(model_alias)
+rm(removed_variables_summary)
+rm(alias_matrix)
+rm(data_model_standardized)
+```
+
+---
+
+## III.2. Analyse de colinéarité entre variables explicatives (matrice de corrélation, heatmap, MDS)
+
+<br>
+
+Nous avons ensuite calculé la **matrice de corrélation** et visualisé les relations entre variables à l’aide de *heatmaps* et de *MDS* (*Multidimensional Scaling*). Ces outils permettent de détecter la **multicolinéarité non parfaite**, qui, bien que moins évidente, peut fragiliser l’estimation.
+
+Cette étape approfondit:
+- L’analyse de la **redondance entre les variables**,  
+- Et contribue à **affiner la sélection des variables** pour le modèle.
+
+
+En identifiant les relations complexes entre variables explicatives, nous renforçons ainsi la fiabilité et la robustesse des résultats obtenus dans nos régressions.
+
+<br>
+
+```{r Matrix Corrélation, include=FALSE}
+
+library(dplyr)
+library(tidyr)
+library(writexl)
+library(ggplot2)
+library(reshape2)
+library(stats)
+library(igraph)
+
+# Charger le DataFrame `data_work3` directement
+data_expl <- data_work3 %>%
+  select(-Temps, -fec)  # Exclure les colonnes non explicatives
+
+# Charger le DataFrame `data_work3` directement
+data_expl <- data_work3 %>%
+  select(-Temps, -fec)  # Exclure les colonnes non explicatives
+
+# Calculer la matrice de corrélation
+cor_mat <- cor(data_expl, use = "complete.obs")
+write_xlsx(as.data.frame(cor_mat), "//Users/mehdifehri/Desktop/R/Code Final Fec/Correlation_Matrix_Data_Work3.xlsx")
+
+cat("Matrice de corrélation (sans variable dépendante) :\n")
+print(cor_mat)
+```
+
+```{r matrice de corr, include=TRUE}
+# Calculer la matrice de corrélation
+cor_mat <- cor(data_expl, use = "complete.obs")
+
+# Heatmap
+correlation_melted <- melt(cor_mat)
+heatmap_plot <- ggplot(correlation_melted, aes(x = Var1, y = Var2, fill = value)) +
+  geom_tile(color = "white") +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", midpoint = 0,
+                       limit = c(-1, 1), space = "Lab", name = "Corrélation") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+  labs(title = "Matrice de corrélation (data_work3)", x = "Variables", y = "Variables")
+```
+
+<br>
+
+Nous sommes passés de la matrice de corrélation suivante :
+
+<br>
+
+```{r image1, echo=FALSE}
+
+knitr::include_graphics("//Users/mehdifehri/Desktop/R/Données/Matrice Avant.png")
+
+```
+
+<br>
+
+A la matrice de corrélation suivante, une fois le tri des variables effectué :
+
+<br>
+
+```{r print mattrice, include=TRUE}
+print(heatmap_plot)
+```
+
+<br>
+
+Nous avons aussi identifié les paires les plus corrélées (les résultats que vous voyez ici, sont les résultats avec seulement nos 13 variables finales)
+
+<br>
+
+## Paires de variables avec corrélation > 0.5
+
+```{r corrélations, include=TRUE}
+# Identification des paires de variables fortement corrélées
+corr_threshold <- 0.5
+high_corr_pairs <- correlation_melted %>%
+  filter(value > corr_threshold & Var1 != Var2) %>%
+  arrange(desc(value)) %>%
+  mutate(pair = paste0(pmin(as.character(Var1), as.character(Var2)), "-", pmax(as.character(Var1), as.character(Var2)))) %>%
+  distinct(pair, .keep_all = TRUE) %>%
+  select(-pair)
+
+cat("Paires de variables avec corrélation >", corr_threshold, ":\n")
+print(high_corr_pairs)
+
+# Compter les variables les plus fréquentes dans les paires corrélées
+variable_counts <- high_corr_pairs %>%
+  select(Var1, Var2) %>%
+  pivot_longer(cols = everything(), values_to = "Variable") %>%
+  group_by(Variable) %>%
+  summarise(Frequency = n()) %>%
+  arrange(desc(Frequency))
+
+cat("\n### Variables les plus corrélées ###\n")
+print(variable_counts)
+```
+<br>
+
+Nous avons ensuite visualisé graphiquement les clusters de variables
+
+Notre **graphique MDS** ressemblait à l'origine à ceci :
+
+<br>
+
+```{r image2, echo=FALSE}
+knitr::include_graphics("//Users/mehdifehri/Desktop/R/Données/MDS Avant.png")
+```
+
+<br>
+
+Au graphique MDS suivant, une fois le tri des variables effectué.
+
+<br>
+
+```{r MDS visualisation, include=FALSE}
+# Création d'une matrice de distance basée sur 1 - |corr|
+dist_mat <- as.dist(1 - abs(cor_mat))
+
+### Dendrogramme
+hc <- hclust(dist_mat, method = "complete")
+pdf("//Users/mehdifehri/Desktop/R/Code Final Fec/Dendrogramme_Data_Work3.pdf", width = 10, height = 8)
+plot(hc, main = "Dendrogramme des variables (data_work3)", xlab = "Variables", sub = "")
+abline(h = 0.2, col = "red", lty = 2)  # Ajuster le seuil si nécessaire
+dev.off()
+cat("Dendrogramme sauvegardé en PDF.\n")
+```
+
+```{r MDS visualisation1, include=TRUE}
+
+### MDS (Multi-Dimensional Scaling)
+mds_res <- cmdscale(dist_mat, k = 2)
+mds_df <- data.frame(
+  Dim1 = mds_res[,1],
+  Dim2 = mds_res[,2],
+  Variable = rownames(mds_res)
+)
+
+mds_plot <- ggplot(mds_df, aes(x = Dim1, y = Dim2, label = Variable)) +
+  geom_point() +
+  geom_text(vjust = -0.5, size = 3) +
+  labs(title = "Représentation MDS des variables (data_work3)", x = "Dimension 1", y = "Dimension 2") +
+  theme_minimal()
+
+print(mds_plot)
+ggsave("//Users/mehdifehri/Desktop/R/Code Final Fec/MDS_Plot_Data_Work3.pdf", plot = mds_plot, width = 10, height = 8)
+cat("MDS plot affiché et sauvegardé en PDF.\n")
+```
+<br>
+
+In fine, Nous avons créé un **graphique de réseau** ainsi qu'un **dendrogramme**.
+
+<br>
+
+--- 
+
+```{r graphe de réseau, include=FALSE}
+
+
+rm(hc)
+rm(high_corr_pairs)
+rm(mds_df)
+rm(mds_res)
+rm(variable_counts)
+rm(data_expl)
+rm(cor_mat)
+rm(correlation_melted)
+rm(data_work_trend)
+
+
+```
+
+## III.3.	Réduction des variables à fort VIF (Facteur d’inflation de la variance) et création du DataFrame final
+
+<br>
+
+Ensuite, nous calculons le **Facteur d’inflation de la variance** (*Variance Inflation Factor*, VIF) pour chaque variable afin d’identifier et d’éliminer celles présentant une **multicolinéarité excessive**. Un **VIF élevé** est un indicateur que l’estimation du coefficient associé à une variable est **instable**, en raison d’une forte corrélation avec d’autres variables explicatives.
+
+
+Cette étape, réalisée après l’analyse des corrélations, poursuit deux objectifs principaux:
+- **Réduire les redondances** entre variables explicatives,  
+- Garantir un **jeu de variables final stable et fiable**, essentiel pour assurer la robustesse des estimations.
+
+
+En somme, l’utilisation du VIF constitue une vérification cruciale pour prévenir les biais et améliorer la qualité globale du modèle.
+
+
+```{r VIF, include=FALSE}
+# Charger les bibliothèques nécessaires
+library(car)  # Pour le calcul du VIF
+library(dplyr)
+library(writexl)
+  # Identifier les variables explicatives
+variables_explicatives <- setdiff(names(data_work3), c("fec", "Temps"))
+```
+
+Nous avons développé un **code spécifique** pour supprimer les variables présentant un **Facteur d’inflation de la variance** (*Variance Inflation Factor*, VIF) trop élevé. 
+
+Cette boucle itérative fonctionne selon le processus suivant:
+1. **Calcul des VIF** pour toutes les variables explicatives.  
+2. Suppression de la variable ayant le **VIF le plus élevé**.  
+3. Répétition du processus jusqu’à ce que toutes les variables restantes aient un **VIF inférieur au seuil d’acceptabilité** que nous avons fixé arbitrairement.
+
+Cette approche garantit que le modèle final est exempt de **multicolinéarité excessive**, améliorant ainsi la stabilité des estimations et la fiabilité des résultats.
+
+```{r VIF1, include=TRUE}
+# Créer une copie des données pour le processus VIF
+data_for_vif <- data_work3
+
+# Définir le seuil de VIF
+vif_threshold <- 777
+
+# Initialiser les listes pour stocker les résultats
+iteration_results <- list()
+removed_variables <- data.frame(Iteration = integer(), Variable = character(), VIF_Value = numeric(), stringsAsFactors = FALSE)
+
+# Boucle itérative pour supprimer les variables avec VIF élevé
+iteration <- 1
+while (TRUE) {
+  cat("\n--- Itération", iteration, "---\n")
+  
+  # Ajuster un modèle linéaire avec les variables explicatives restantes
+  current_model <- lm(fec ~ ., data = data_for_vif[, c("fec", variables_explicatives)])
+  
+  # Calculer le VIF pour chaque variable explicative
+  vif_values <- vif(current_model)
+  
+  # Afficher les VIF actuels
+  cat("Facteurs d'inflation de la variance (VIF) actuels :\n")
+  print(vif_values)
+  
+  # Sauvegarder les résultats de l'itération
+  iteration_results[[iteration]] <- data.frame(Variable = names(vif_values), VIF = vif_values, Iteration = iteration)
+  
+  # Identifier les variables avec un VIF supérieur au seuil
+  high_vif_vars <- names(vif_values[vif_values > vif_threshold])
+  
+  # Vérifier s'il reste des variables avec un VIF élevé
+  if (length(high_vif_vars) == 0) {
+    cat("Toutes les variables ont un VIF <= ", vif_threshold, ". Fin de la boucle.\n")
+    break
+  }
+  
+  # Identifier la variable avec le VIF maximum
+  variable_to_remove <- high_vif_vars[which.max(vif_values[high_vif_vars])]
+  max_vif_value <- max(vif_values[high_vif_vars])
+  cat("Variable avec le VIF le plus élevé :", variable_to_remove, "(", max_vif_value, ")\n")
+  
+  # Ajouter la variable supprimée à la liste des variables supprimées
+  removed_variables <- rbind(removed_variables, data.frame(Iteration = iteration, Variable = variable_to_remove, VIF_Value = max_vif_value))
+  
+  # Supprimer cette variable des données et des variables explicatives
+  data_for_vif <- data_for_vif %>% select(-all_of(variable_to_remove))
+  variables_explicatives <- setdiff(variables_explicatives, variable_to_remove)
+  
+  # Augmenter le compteur d'itérations
+  iteration <- iteration + 1
+}
+
+```
+<br>
+
+Par exemple, la variable **'naissance hors mariage'** a été supprimée, car son **Facteur d’inflation de la variance** (*VIF*) dépassait le seuil d’acceptabilité, indiquant une **colinéarité excessive** avec d’autres variables du modèle.
+
+Cette approche garantit une **réduction progressive de la colinéarité**, ce qui contribue à:
+- Améliorer la **robustesse** des résultats,  
+- Renforcer la **stabilité des estimations**,  
+- Assurer une meilleure **interprétation des coefficients** dans le modèle final.
+
+En somme, ce processus optimise la qualité de l’analyse économétrique en éliminant les interdépendances nuisibles entre variables explicatives.
+
+<br>
+
+```{r VIF2, include=FALSE}
+
+data_work4 <- data_for_vif
+
+# Sauvegarder les données finales sans VIF élevé
+write_xlsx(data_work4, "//Users/mehdifehri/Desktop/R/Code Final Fec/Data_Work4.xlsx")
+cat("Les données finales après suppression des variables avec VIF > ", vif_threshold, " ont été sauvegardées sous 'Data_Work4.xlsx'.\n")
+
+
+# Imprimer les noms des colonnes du nouveau DataFrame `data_work4`
+cat("\nNoms des colonnes du DataFrame `data_work4` :\n")
+print(names(data_for_vif))
+
+# Sauvegarder le DataFrame
+write_xlsx(data_work4, "//Users/mehdifehri/Desktop/R/Code Final Fec/Data_work4.xlsx")
+cat("Le fichier a été sauvegardé avec succès.\n")
+
+
+
+rm(current_model)
+rm(data_work3)
+rm(iteration_results)
+rm(removed_variables)
+rm(data_for_vif)
+```
+
+--- 
+
+# IV. Première régression OLS
+## IV.1. Tests de spécification (RESET), choix de la meilleure forme fonctionnelle
+
+<br>
+
+Après avoir sélectionné et nettoyé nos variables, nous avons effectué le **test RESET** afin d’évaluer la spécification fonctionnelle du modèle. Ce test permet d'identifier d’éventuelles **erreurs de spécification**, telles que:
+- Des relations **non linéaires**,  
+- L’omission de variables importantes.
+
+Cette vérification est essentielle pour garantir que le modèle est **bien adapté aux données** et qu’il fournit des estimations **fiables**.
+
+Nous avons choisi de tester **deux modèles**:
+1. **Un modèle OLS sans transformation des variables explicatives.**  
+2. **Un modèle OLS avec les variables explicatives transformées en logarithmes (*log*).**
+
+***Remarque importante***:  
+Notre variable d’intérêt **`fec`** (un taux de variation) **ne peut pas être transformée en logarithme**, car elle contient des valeurs négatives. Par conséquent, un modèle en *double log* est impossible.  
+
+Cependant, nous pouvons interpréter les résultats sans transformation comme une forme de **semi-élasticité** (taux de variation).  
+De plus, en transformant uniquement les variables explicatives en logarithmes, nous obtenons une **lecture finale simplifiée** sous forme d’**élasticités**, ce qui facilite l’analyse et l’interprétation des résultats.
+
+<br>
+
+```{r RESET, include=FALSE}
+library(readxl)
+library(dplyr)
+library(lmtest)
+library(writexl)
+
+```
+
+``` {r test RESET, include=TRUE}
+# Modèle OLS de base
+model_ols <- lm(fec ~ . - Temps, data = data_work4)
+print(summary(model_ols))
+
+# Création d'un modèle auxiliaire avec variables explicatives log
+# Transformer les variables explicatives en log avec un préfixe et nettoyer les non-log
+data_work4_log <- data_work4 %>%
+  mutate(across(-c(Temps, fec), log, .names = "log_{.col}")) %>%
+  select(Temps, fec, starts_with("log_"))
+write_xlsx(data_work4_log, "//Users/mehdifehri/Desktop/R/Code Final Fec/Data_Work4_Log.xlsx")
+
+# Modèle OLS avec les variables explicatives transformées en log
+model_ols_log <- lm(fec ~ . - Temps, data = data_work4_log)
+print(summary(model_ols_log))
+
+# Test RESET pour le modèle OLS (base)
+cat("\n### Test RESET pour le modèle OLS ###\n")
+reset_test_ols <- resettest(model_ols, power = 2:3, type = "fitted")
+print(reset_test_ols)
+
+if (reset_test_ols$p.value > 0.05) {
+  cat("\nInterprétation : Le modèle de base est correctement spécifié. (p-value =", reset_test_ols$p.value, ")\n")
+} else {
+  cat("\nInterprétation : Le modèle de base est mal spécifié. (p-value =", reset_test_ols$p.value, ")\n")
+}
+
+# Test RESET pour le modèle OLS log-transformé
+cat("\n### Test RESET pour le modèle OLS (log-transformé) ###\n")
+reset_test_ols_log <- resettest(model_ols_log, power = 2:3, type = "fitted")
+print(reset_test_ols_log)
+
+if (reset_test_ols_log$p.value > 0.05) {
+  cat("\nInterprétation : Le modèle log-transformé est correctement spécifié. (p-value =", reset_test_ols_log$p.value, ")\n")
+} else {
+  cat("\nInterprétation : Le modèle log-transformé est mal spécifié. (p-value =", reset_test_ols_log$p.value, ")\n")
+}
+
+```
+
+<br>
+
+Comme indiqué, **notre modèle log-transformé est correctement spécifié**
+
+<br>
+
+---
+
+## IV.2. Choix de la meilleure transformation : Transformation logarithmique des variables explicatives et régression OLS
+
+<br>
+
+Après avoir vérifié que les deux formes fonctionnelles sont correctement spécifiées, nous procédons à une **comparaison de leurs performances** afin de sélectionner le modèle le plus performant.
+
+Cette comparaison implique l'évaluation des critères suivants:
+- **Ajustement du modèle** : Analyse de la qualité de l'ajustement aux données observées.  
+- **Significativité des coefficients** : Vérification de la pertinence statistique des variables explicatives.  
+- **Critères d'information** : Utilisation de mesures telles que le *Critère d'Information d'Akaike* (AIC) ou le *Critère d'Information Bayésien* (BIC) pour comparer les modèles.  
+- **Analyse des résidus** : Inspection des résidus pour détecter toute violation des hypothèses du modèle, comme l'homoscédasticité ou la normalité des erreurs.  
+
+En évaluant ces aspects, nous visons à identifier la transformation qui offre le meilleur équilibre entre **simplicité** et **précision prédictive**, garantissant ainsi des estimations fiables et une interprétation aisée des résultats.
+
+<br>
+
+```{r comparaison, include=TRUE}
+
+# Initialisation du tableau récapitulatif
+model_comparison <- data.frame(
+  Model = character(),
+  Adjusted_R2 = numeric(),
+  AIC = numeric(),
+  BIC = numeric(),
+  RESET_p_value = numeric(),
+  RESET_Interpretation = character(),
+  stringsAsFactors = FALSE
+)
+
+# Remplir le tableau pour chaque modèle
+models <- list(
+  "Model OLS" = model_ols,
+  "Model OLS (Log)" = model_ols_log
+)
+
+# Fonction pour obtenir l'interprétation du test RESET
+perform_reset <- function(model) {
+  reset_results <- resettest(model, power = 2:3, type = "fitted")
+  if (reset_results$p.value > 0.05) {
+    interpretation <- "Correctement spécifié"
+  } else {
+    interpretation <- "Mal spécifié"
+  }
+  return(list(p_value = reset_results$p.value, interpretation = interpretation))
+}
+
+# Remplir le tableau avec les résultats pour chaque modèle
+for (name in names(models)) {
+  model <- models[[name]]
+  summary_model <- summary(model)
+  reset_results <- perform_reset(model)
+  
+  model_comparison <- rbind(model_comparison, data.frame(
+    Model = name,
+    Adjusted_R2 = summary_model$adj.r.squared,
+    AIC = AIC(model),
+    BIC = BIC(model),
+    RESET_p_value = reset_results$p_value,
+    RESET_Interpretation = reset_results$interpretation
+  ))
+}
+
+# Afficher le tableau comparatif des modèles
+print(model_comparison)
+
+```
+<br>
+
+Sur la base de ces résultats, le **modèle logarithmique** s'est révélé plus performant. Nous avons donc décidé d'appliquer une transformation logarithmique à nos variables explicatives afin de simplifier l'interprétation finale.
+
+<br>
+
+***Remarque importante***:  
+Notre variable d'intérêt, **`fec`**, qui représente un taux de variation, ne peut pas être transformée en logarithme en raison de la présence de valeurs négatives. Par conséquent, un modèle en *double log* n'est pas envisageable.
+
+Cependant, les résultats sans transformation peuvent être interprétés en termes de **semi-élasticité**. La transformation logarithmique des variables explicatives permet d'obtenir une lecture finale simplifiée sous forme d'**élasticité**, facilitant ainsi l'interprétation des relations entre les variables.
+
+<br>
+
+```{r comparaison2, include=FALSE}
+# Sauvegarder le tableau comparatif dans un fichier Excel
+write_xlsx(model_comparison, "//Users/mehdifehri/Desktop/R/Code Final Fec/Model_Comparison.xlsx")
+
+rm(model)
+rm(model_comparison)
+rm(models)
+rm(summary_model)
+rm(model_ols)
+rm(model_ols_log)
+rm(reset_results)
+rm(reset_test_ols)
+rm(reset_test_ols_log)
+rm(data_work4)
+
+# Charger les bibliothèques nécessaires
+library(broom)
+library(writexl)
+library(dplyr)
+library(readxl)
+```
+
+--- 
+
+## IV.3. Suppression des outliers dans notre modèle final réduit OLS log et nouvelle régression
+
+```{r outliers log, include=TRUE}
+
+# Définition des variables explicatives (exclusion de "Temps" et "fec")
+variables_explicatives_ols <- setdiff(colnames(data_work4_log), c("Temps", "fec"))
+
+model_final <- lm(as.formula(paste("fec ~", paste(variables_explicatives_ols, collapse = " + "))), data = data_work4_log)
+
+# Extraction des résidus
+residus <- residuals(model_final)
+
+# Seuil pour les outliers (par exemple, 2 fois l'écart-type des résidus)
+threshold <- 1.75 * sd(residus)
+
+# Suppression des outliers
+data_work4_log_out <- data_work4_log %>%
+  mutate(Residus = residus) %>%
+  filter(abs(Residus) <= threshold) %>%
+  select(-Residus)  # Retirer la colonne temporaire "Residus"
+
+# Régression OLS après suppression des outliers
+model_after_outliers <- lm(as.formula(paste("fec ~", paste(variables_explicatives_ols, collapse = " + "))), 
+                           data = data_work4_log_out)
+
+# Résumé du modèle ajusté après suppression des outliers
+cat("\nRésumé du modèle OLS après suppression des outliers:\n")
+print(summary(model_after_outliers))
+
+```
+
+<br>
+
+Après avoir de nouveau supprimé les **valeurs aberrantes** (*outliers*), soit 4 observations, le **R² ajusté** de notre modèle s'est sensiblement amélioré, passant de **56,8%** à **73,6%**.
+
+Cette augmentation significative indique que l'élimination des données atypiques a permis d'améliorer la qualité de l'ajustement du modèle, renforçant ainsi la **précision** et la **fiabilité** des estimations obtenues.
+
+<br>
+
+```{r outliers 2, include=FALSE}
+write_xlsx(data_work4_log_out, "//Users/mehdifehri/Desktop/R/Code Final Fec/data_work4_log_out.xlsx")
+
+
+rm(data_work4_log)
+```
+
+## IV.4.	Modèle final, visualisation des résidus
+
+## Visualisation des résidus
+
+```{r modèle final, include=FALSE}
+variables_explicatives_ols <- setdiff(colnames(data_work4_log_out), c("Temps", "fec"))
+formule_ols <- as.formula(paste("fec ~", paste(variables_explicatives_ols, collapse = " + ")))
+# Ajustement du modèle de régression
+model_final <- lm(formule_ols, data = data_work4_log_out)
+
+# Extraction des résidus
+residus <- residuals(model_final)
+
+cat("\n### Visualisations des résidus ###\n")
+```
+
+```{r visualisation des résidus ; modèle final, include=TRUE}
+# Résidus vs valeurs ajustées
+plot(fitted(model_final), residus, main = "Résidus vs valeurs ajustées",
+     xlab = "Valeurs ajustées", ylab = "Résidus", pch = 19, col = "blue")
+abline(h = 0, col = "red", lty = 2)
+
+# Résidus vs indices
+plot(1:length(residus), residus, main = "Résidus vs indices",
+     xlab = "Indice", ylab = "Résidus", pch = 19, col = "green")
+abline(h = 0, col = "red", lty = 2)
+
+# Histogramme des résidus
+hist(residus, breaks = 15, col = "gray", main = "Histogramme des résidus", xlab = "Résidus")
+
+# QQ-Plot des résidus
+qqnorm(residus, main = "Q-Q Plot des résidus")
+qqline(residus, col = "red")
+```
+
+# Les 4 + 1 hypothèses de Gauss-Markov : Diagnostic et traitement
+### Hypothèse : Normalité des erreurs
+
+<br>
+
+Nous avons vérifié la **normalité des résidus** en utilisant le *test de Shapiro-Wilk* et en examinant graphiquement leur distribution à l'aide d'**histogrammes** et de **Q-Q plots** (*Quantile-Quantile plots*).
+
+Le *test de Shapiro-Wilk* évalue l'hypothèse nulle selon laquelle les résidus suivent une distribution normale. Une **p-valeur** supérieure à 0,05 indique que l'on ne peut pas rejeter cette hypothèse, suggérant que les résidus sont normalement distribués. :contentReference[oaicite:0]{index=0}
+
+Les **Q-Q plots** permettent de comparer les quantiles des résidus à ceux d'une distribution normale. Si les points du graphique se rapprochent d'une ligne droite, cela indique que les résidus suivent une distribution normale. :contentReference[oaicite:1]{index=1}
+
+Ces méthodes combinées offrent une évaluation robuste de la normalité des résidus, essentielle pour valider les hypothèses sous-jacentes aux modèles de régression.
+
+<br>
+
+## Test de **Shapiro-Wilk** :
+```{r blio, include=TRUE }
+# Test de Shapiro-Wilk
+shapiro_test <- shapiro.test(residus)
+cat("Test de Shapiro-Wilk :\n")
+cat("Statistique W :", round(shapiro_test$statistic, 4), "\n")
+cat("P-value :", round(shapiro_test$p.value, 4), "\n")
+
+if (shapiro_test$p.value > 0.05) {
+  cat("Conclusion : Les résidus suivent une distribution normale (H0 acceptée).\n")
+} else {
+  cat("Conclusion : Les résidus ne suivent pas une distribution normale (H0 rejetée).\n")
+}
+```
+<br>
+
+# Hypothèse 1 : Moyenne et Somme des résidus doivent être nulle
+
+<br>
+
+Nous avons vérifié que la **moyenne des résidus** était nulle, ce qui est conforme à l'une des hypothèses fondamentales du **théorème de Gauss-Markov**. Cette condition garantit que les estimateurs des coefficients de régression sont **non biaisés**, c'est-à-dire que, en moyenne, ils correspondent aux véritables valeurs des paramètres. :contentReference[oaicite:0]{index=0}
+
+Cette vérification, effectuée après les ajustements du modèle, assure que celui-ci respecte cette condition essentielle, renforçant ainsi la **validité** et la **fiabilité** des estimations obtenues.
+
+<br>
+
+```{r Hypothèse 1, include=TRUE }
+cat("\n--- Étape 1 : Résidus de moyenne nulle ---\n")
+mean_residuals <- mean(residus)
+std_error_residuals <- sd(residus) / sqrt(length(residus))
+t_stat <- mean_residuals / std_error_residuals
+p_value <- 2 * pt(-abs(t_stat), df = length(residus) - 1)
+
+cat("Moyenne des résidus :", round(mean_residuals, 5), "\n")
+cat("t-statistic :", round(t_stat, 3), " | p-value :", round(p_value, 5), "\n")
+
+if (p_value > 0.05) {
+  cat("H₀ est vérifiée : les résidus ont une moyenne nulle.\n")
+} else {
+  cat("H₀ est rejetée : les résidus n'ont pas une moyenne nulle.\n")
+}
+```
+
+# Hypothèse 2 : Exogénéité
+
+<br>
+
+Nous avons, en amont, identifié **6 variables susceptibles d’être endogènes** dans notre analyse, en raison de leur lien potentiel avec le taux de fécondité étudié :  
+
+1. **`log_lag_tx_emploifem`** : Le taux de fécondité peut influencer le taux d’emploi des femmes en modifiant leur participation au marché du travail, notamment en raison des responsabilités familiales.  
+2. **`log_lag_emploi_flex_fem`** : Un taux de fécondité élevé peut accroître le recours des femmes à des formes de travail précaire (CDD, intérim, stages), souvent choisies pour concilier vie professionnelle et parentalité.  
+3. **`log_lag_spepro_cadrefemmes`** : Un taux de fécondité élevé peut limiter la spécialisation professionnelle des femmes cadres, en réduisant leurs opportunités de carrière ou leur temps alloué à des postes à responsabilité.  
+4. **`log_lag_loyers`** : Les coûts élevés des loyers peuvent décourager les ménages à avoir plus d’enfants, tout en influençant leur mobilité professionnelle et leur capacité à subvenir à des besoins croissants.  
+5. **`log_lag_ivg_100`** : Le nombre d’IVG pour 100 naissances reflète des choix reproductifs susceptibles d’être influencés par des contraintes économiques, sociales ou culturelles liées au taux de fécondité.  
+6. **`log_lag_étude_sup`** : La poursuite d’études supérieures, en particulier chez les femmes, peut être affectée par le taux de fécondité, dans la mesure où des responsabilités parentales peuvent limiter l’accès ou la continuité des études.  
+
+<br>
+
+Afin de traiter ces **variables endogènes**, nous avons préparé **8 variables instrumentales** pour instrumenter celles suspectées :  
+
+1. **`log_lag_depseniors`** : La proportion de la population âgée de 65 ans et plus influence directement le **taux d’emploi des femmes** et leur spécialisation professionnelle, car des responsabilités intergénérationnelles peuvent limiter leur engagement professionnel. Indirectement, cela reflète des pressions démographiques susceptibles d’affecter le taux de fécondité.  
+
+2. **`log_lag_lt_interest_rate`** : Le taux d’intérêt à long terme est un indicateur macroéconomique influençant la **poursuite d’études supérieures** (coût des emprunts étudiants, conditions de financement) et les choix de mobilité, y compris le logement. Cela affecte également indirectement les décisions de parentalité.  
+
+3. **`log_lag_opi_famille`** : L’opinion sur l’importance de la famille reflète des valeurs sociétales influençant directement le **recours au travail flexible ou précaire** et les **choix reproductifs** des femmes.  
+
+4. **`log_lag_opi_work_fem`** : Les opinions sur le travail des femmes influencent directement la **spécialisation professionnelle des femmes cadres** et leur participation au marché de l’emploi. Elles traduisent aussi des normes sociétales qui interagissent avec le taux de fécondité.  
+
+5. **`log_lag_pib_hab`** : Le PIB par habitant reflète le développement économique global, influençant directement le **pouvoir d’achat pour le logement** (loyers) et la **poursuite d’études supérieures**. Ce développement peut aussi conditionner indirectement les choix reproductifs.  
+
+6. **`log_lag_acceuilenf`** : Le nombre de places d’accueil pour enfants facilite directement l’accès des femmes au **marché de l’emploi** et réduit le recours au travail flexible ou précaire, tout en encourageant indirectement la parentalité.  
+
+7. **`log_lag_opi_affaires`** : L’opinion sur le climat des affaires reflète la perception des opportunités économiques, influençant directement la **spécialisation professionnelle des femmes cadres** et le **choix des emplois précaires**.  
+
+8. **`log_lag_pa_synthé`** : L’indice de pouvoir d’achat impacte directement les **décisions liées au logement** (prix des loyers) et à la **fécondité**, en déterminant les capacités financières des ménages.  
+
+<br>
+
+Avant d'utiliser nos instruments, nous avons approfondi l'analyse afin de détecter d'éventuelles **variables endogènes** qui auraient pu nous échapper lors de la première identification.
+
+<br>
+
+```{r Exogénéité, include=FALSE}
+
+library(readxl)
+library(dplyr)
+library(lmtest)
+library(ggplot2)
+library(systemfit)
+library(tseries)
+library(Matrix)
+
+# Définition des variables explicatives
+variables_explicatives_ols <- setdiff(colnames(data_work4_log_out), c("Temps", "fec"))
+formule_ols <- as.formula(paste("fec ~", paste(variables_explicatives_ols, collapse = " + ")))
+
+# Ajustement du modèle
+model_final <- lm(formule_ols, data = data_work4_log_out)
+
+# Extraction des résidus et des valeurs ajustées
+residus <- residuals(model_final)
+valeurs_ajustees <- fitted(model_final)
+```
+
+```{r endogénéité1, include=TRUE}
+cat("\n### Visualisation des résidus ###\n")
+
+# Graphique des résidus vs chaque variable explicative
+for (var in variables_explicatives_ols) {
+  # Création explicite du dataframe
+  data_plot <- data.frame(
+    x = data_work4_log_out[[var]],
+    residus = residus
+  )
+  
+  # Création du graphique
+  plot <- ggplot(data_plot, aes(x = x, y = residus)) +
+    geom_point(color = "blue", alpha = 0.7) +
+    geom_smooth(method = "loess", se = FALSE, color = "red") +
+    theme_minimal() +
+    labs(
+      title = paste("Résidus vs", var),
+      x = var,
+      y = "Résidus"
+    )
+  
+  # Forcer l'affichage du graphique dans la boucle
+  print(plot)
+}
+```
+
+## Corrélation entre résidus et variables explicatives
+
+```{r endogénéité2, include=TRUE}
+correlations <- sapply(variables_explicatives_ols, function(var) {
+  cor.test(residus, data_work4_log_out[[var]])$estimate
+})
+p_values <- sapply(variables_explicatives_ols, function(var) {
+  cor.test(residus, data_work4_log_out[[var]])$p.value
+})
+
+# Résultats sous forme de tableau
+corr_results <- data.frame(
+  Variable = variables_explicatives_ols,
+  Correlation = correlations,
+  P_Value = p_values,
+  Significant = p_values <= 0.05
+)
+print(corr_results)
+
+if (any(corr_results$Significant)) {
+  cat("\nCertaines variables explicatives sont significativement corrélées aux résidus. Risque d'endogénéité détecté.\n")
+} else {
+  cat("\nAucune variable explicative n'est significativement corrélée aux résidus. Pas d'évidence d'endogénéité.\n")
+}
+```
+<br>
+
+**Conclusion** : Les tests effectués indiquent qu'aucune variable explicative n'est significativement corrélée aux résidus. Cette absence de corrélation suggère que le modèle est correctement spécifié et que les variables explicatives sélectionnées expliquent adéquatement la variance de la variable dépendante, sans laisser de structure inexploitée dans les résidus.
+
+<br>
+
+## Analyse des résidus croisées
+
+
+```{r endogénéité3, include=TRUE}
+
+# Régression des variables explicatives sur les résidus
+cross_results <- lapply(variables_explicatives_ols, function(var) {
+  model_residu <- lm(data_work4_log_out[[var]] ~ residus)
+  summary_model <- summary(model_residu)
+  data.frame(
+    Variable = var,
+    Coefficient = coef(summary_model)["residus", "Estimate"],
+    P_Value = coef(summary_model)["residus", "Pr(>|t|)"],
+    Significant = coef(summary_model)["residus", "Pr(>|t|)"] <= 0.05
+  )
+}) %>% bind_rows()
+
+print(cross_results)
+
+```
+
+<br>
+
+**Conclusion** : Les analyses effectuées n'ont révélé aucun signe indiquant un risque potentiel d'endogénéité. Cette absence de détection suggère que les variables explicatives du modèle sont exogènes, renforçant ainsi la validité des estimations obtenues.
+
+<br>
+
+
+## TEST DE GRANGER
+
+```{r Test de Granger, include=TRUE}
+
+# Tester la causalité de Granger pour chaque variable explicative et chaque ordre
+orders <- 1:4  # Ordres des tests
+granger_results <- lapply(variables_explicatives_ols, function(var) {
+  lapply(orders, function(order) {
+    tryCatch({
+      test <- grangertest(data_work4_log_out[[var]] ~ residus, order = order, data = data_work4_log_out)
+      data.frame(
+        Variable = var,
+        Order = order,
+        P_Value = test$`Pr(>F)`[2],
+        Significant = test$`Pr(>F)`[2] <= 0.05
+      )
+    }, error = function(e) {
+      data.frame(
+        Variable = var,
+        Order = order,
+        P_Value = NA,
+        Significant = NA
+      )
+    })
+  }) %>% bind_rows()
+}) %>% bind_rows()
+
+
+# Identifier les variables potentiellement endogènes
+potentially_endogenous <- granger_results %>%
+  filter(Significant == TRUE) %>%
+  distinct(Variable)  # Supprimer les doublons
+
+# Générer un tableau des variables potentiellement endogènes
+print(potentially_endogenous)
+
+```
+
+<br>
+
+**Conclusion** : Selon le **test de causalité de Granger**, une variable apparait comme potentiellement endogènes. Elle ne fait pas partie des variables que nous avions initialement suspectées. Cependant, ces résultats pourraient être influencés par des problématiques d'**autocorrélation**, ce qui nécessite une analyse plus approfondie pour confirmer l'endogénéité réelle de ces variables.
+
+<br>
+
+```{r Variables Instrumentales, include=FALSE}
+library(readxl)
+library(dplyr)
+library(writexl)
+library(AER)
+library(lmtest)
+library(sandwich)
+library(car)
+
+Vi_vf <- Variables_instrumentales %>%
+  filter(Temps %in% data_work4_log_out$Temps) %>%
+  mutate(across(-Temps, ~ ifelse(. > 0, log(.), NA), .names = "log_{.col}")) %>%
+  select(starts_with("log_")) %>%
+  select(-log_lag_opi_depression)  # Suppression de la variable log_lag_depression
+
+# Définir variables explicatives et endogènes
+variables_explicatives <- setdiff(colnames(data_work4_log_out), c("Temps", "fec"))
+endogenous_vars <- variables_explicatives[grep("(ivg|emploi|cadrefemme|preca|loyer|étude|flex)", variables_explicatives)]
+
+cat("\nVariables endogènes identifiées:\n")
+
+
+# Variables instrumentales
+instrument_vars <- colnames(Vi_vf)
+cat("\nVariables instrumentales disponibles:\n")
+
+# Combiner les données
+data_work4_log_out_iv <- bind_cols(data_work4_log_out, Vi_vf)
+```
+
+## Analyse des variables potentiellement endogènes
+
+```{r Variables Instrumentales1, include=TRUE}
+
+# Nos variables endogènes
+cat(paste0("- ", endogenous_vars, collapse = "\n"), "\n\n")
+
+
+# Nos variables instrumentales\n")
+cat(paste0("- ", instrument_vars, collapse = "\n"), "\n")
+
+
+```
+## Tests de première étape (First-stage) pour les variables endogènes 2FSLS
+
+```{r 2FLS, include=TRUE}
+
+if (length(endogenous_vars) > 0) {
+  first_stage_summary <- data.frame()
+  
+  for (endog in endogenous_vars) {
+    # Formule pour la première étape
+    first_stage_formula <- as.formula(paste(
+      endog, "~",
+      paste(c(instrument_vars, setdiff(variables_explicatives, endogenous_vars)), collapse = " + ")
+    ))
+    
+    # Modèle de première étape
+    first_stage_model <- lm(first_stage_formula, data = data_work4_log_out_iv)
+    
+    # F-test pour la pertinence des instruments
+    instruments_only_formula <- as.formula(paste(endog, "~", paste(instrument_vars, collapse = " + ")))
+    instruments_only <- update(first_stage_model, instruments_only_formula)
+    f_test <- waldtest(first_stage_model, instruments_only)
+    
+    # Stockage des résultats
+    first_stage_summary <- rbind(first_stage_summary, data.frame(
+      Endogenous_Variable = endog,
+      F_statistic = ifelse(!is.null(f_test$F[2]), f_test$F[2], NA),
+      F_p_value = ifelse(!is.null(f_test$`Pr(>F)`[2]), f_test$`Pr(>F)`[2], NA),
+      R_squared = summary(first_stage_model)$r.squared,
+      Adj_R_squared = summary(first_stage_model)$adj.r.squared
+    ))
+  }
+  
+  # Affichage des résultats
+  print(first_stage_summary)
+} else {
+  message("Aucune variable endogène détectée. Pas besoin de modèle IV.")
+}
+
+  
+```
+<br>
+
+**Analyse des Résultats :**
+
+Lors de la première étape de notre analyse en **moindres carrés en deux étapes** (*2SLS*), nous avons observé que la plupart de nos variables présentaient des **F-statistics** largement supérieures à 10. Cette observation indique que nos variables instrumentales sont fortement corrélées avec les variables endogènes qu'elles sont censées instrumenter, attestant ainsi de leur pertinence.
+
+La pertinence des instruments est cruciale pour garantir des estimations fiables dans les modèles économétriques. Des instruments faibles peuvent conduire à des estimations biaisées et inefficaces. Ainsi, une **F-statistic** supérieure à 10 est souvent utilisée comme seuil empirique pour indiquer la force adéquate des instruments. 
+
+Cependant, il est également essentiel de vérifier l'exogénéité des instruments, c'est-à-dire s'assurer qu'ils ne sont pas corrélés avec le terme d'erreur du modèle structurel. Cette double vérification de la pertinence et de l'exogénéité des instruments renforce la validité des estimations obtenues.
+
+En résumé, les **F-statistics** élevées observées lors de la première étape de notre analyse suggèrent que nos instruments sont pertinents, ce qui augmente la confiance dans les résultats de notre modèle, sous réserve que l'exogénéité des instruments soit également confirmée.
+
+<br>
+
+## Modèle IV
+
+```{r 2SLSi, include=TRUE}
+# Formule IV
+formula_iv <- as.formula(paste(
+  "fec ~", 
+  paste(variables_explicatives, collapse = " + "),
+  "|",
+  paste(c(setdiff(variables_explicatives, endogenous_vars), instrument_vars), collapse = " + ")
+))
+
+# Estimation du modèle IV
+iv_model <- ivreg(formula_iv, data = data_work4_log_out_iv)
+
+cat("\nRésumé du modèle IV:\n")
+print(summary(iv_model))
+```
+
+<br>
+
+**Analyse des Résultats :**
+
+Le test que nous avons effectué permet de :
+
+- **Vérifier l'influence des variables explicatives sur la fécondité** :
+  - Évaluer si la variable dépendante, la fécondité (*fec*), est influencée de manière fiable par nos variables explicatives telles que la précarité féminine (*préca_fem*), le temps partiel (*tpspartiel*), etc., sans biais dû à l'endogénéité.
+
+- **Instrumenter les variables endogènes** :
+  - Estimer correctement l'impact des variables endogènes sur la fécondité en corrigeant les biais potentiels.
+  - Par exemple, des instruments comme le taux d'intérêt ou le PIB par habitant peuvent être utilisés pour capturer des variations exogènes.
+
+Le **test de Wald** que nous avons réalisé, avec une valeur de *p* inférieure à 0.05, indique que le modèle global est statistiquement significatif.
+
+Cela confirme que les instruments et les variables explicatives sont collectivement pertinents pour expliquer la variable dépendante, validant ainsi leur pertinence pour corriger l'endogénéité.
+
+<br>
+
+## Test de Sargan
+
+```{r Test de Sargan, include=TRUE}
+# Vérifiez que le modèle IV a été estimé avant de lancer ce test
+if (!exists("iv_model")) {
+  stop("Le modèle IV n'a pas encore été estimé. Veuillez exécuter le bloc pour l'estimation du modèle IV.")
+}
+
+# Test de Sargan
+iv_summary <- summary(iv_model, diagnostics = TRUE)
+sargan_test <- iv_summary$diagnostics["Sargan", ]
+
+cat("\nTest de Sargan:\n")
+print(sargan_test)
+
+cat("\nInterprétation du Test de Sargan:\n")
+cat("- Un p-value faible (<0.05) indique que les instruments ne sont pas valides (suridentification non rejetée).\n")
+cat("- Un p-value élevé indique que les instruments sont globalement valides.\n")
+```
+<br>
+
+**Analyse des Résultats du Test de Sargan :**
+
+Le **test de Sargan**, également connu sous le nom de test de suridentification, évalue la validité des instruments utilisés dans notre modèle économétrique. Il vérifie si ces instruments sont exogènes, c'est-à-dire non corrélés avec le terme d'erreur du modèle.
+
+**Conclusion :**
+
+Les résultats du test de Sargan indiquent que **nos instruments sont valides**, renforçant ainsi la confiance dans les estimations de notre modèle. Cette validité suggère que les instruments utilisés sont appropriés pour corriger l'endogénéité, assurant des estimations non biaisées et efficaces.
+
+Il est toutefois recommandé de compléter cette analyse par d'autres tests de robustesse pour confirmer la solidité de nos instruments et la fiabilité des conclusions tirées de notre modèle.
+
+<br>
+
+## Test de Hausman
+
+```{r Test de Hausman, include=TRUE}
+
+ols_model <- lm(as.formula(paste("fec ~", paste(variables_explicatives, collapse = " + "))),
+                data = data_work4_log_out_iv)
+
+# Test de Hausman
+hausman_results <- try({
+  b_iv <- coef(iv_model)
+  b_ols <- coef(ols_model)
+  common_vars <- intersect(names(b_iv), names(b_ols))
+  
+  b_diff <- b_iv[common_vars] - b_ols[common_vars]
+  vcov_diff <- vcov(iv_model)[common_vars, common_vars] - vcov(ols_model)[common_vars, common_vars]
+  
+  if (det(vcov_diff) == 0) {
+    stop("La matrice de variance-covariance est singulière, impossible de calculer le test de Hausman.")
+  }
+  
+  stat <- as.numeric(t(b_diff) %*% solve(vcov_diff) %*% b_diff)
+  p_value <- 1 - pchisq(stat, df = length(common_vars))
+  list(statistic = stat, p_value = p_value)
+})
+
+if (!inherits(hausman_results, "try-error")) {
+  cat("\nTest de Hausman:\n")
+  print(hausman_results)
+  cat("\nInterprétation du Test de Hausman:\n")
+  cat("- Un p-value faible suggère que le modèle OLS est biaisé et que le modèle IV est préférable.\n")
+  cat("- Un p-value élevé suggère que le biais d'endogénéité n'est pas significatif, l'OLS pourrait être acceptable.\n")
+} else {
+  cat("Le test de Hausman n'a pas pu être effectué (matrice non inversible). Vérifiez vos données et instruments.\n")
+}
+```
+<br>
+
+**Analyse des Résultats du Test de Hausman :**
+
+Le **test de Hausman** est utilisé pour déterminer si un modèle économétrique souffre d'endogénéité, c'est-à-dire si certaines variables explicatives sont corrélées avec le terme d'erreur. Une endogénéité non corrigée peut biaiser les estimations et conduire à des conclusions erronées.
+
+**Conclusion :**
+
+Les résultats du test de Hausman indiquent que **notre modèle OLS ne souffre pas de problèmes significatifs d'endogénéité**. Par conséquent, il n'est pas nécessaire de recourir à des méthodes d'instrumentation ou à des transformations supplémentaires pour corriger l'endogénéité. Les variables instrumentales que nous avons considérées sont pertinentes, comme le confirment les différents tests effectués, mais leur utilisation n'est pas indispensable dans ce contexte spécifique.
+
+*Il reste toutefois recommandé de rester vigilant quant à la spécification du modèle et de considérer d'autres tests de robustesse pour s'assurer de la fiabilité des estimations obtenues*
+
+<br>
+
+---
+
+```{r exogénéité4, include=FALSE}
+rm(data_plot)
+rm(f_test)
+rm(first_stage_summary)
+rm(first_stage_model)
+rm(hausman_results)
+rm(instruments_only)
+rm(iv_model)
+rm(iv_summary)
+rm(plot_residus_bruts)
+rm(plot_residus_standardises)
+rm(r2_standardized)
+rm(Variables_instrumentales)
+rm(Variables_instrumentales1)
+
+
+rm(corr_results)
+rm(cross_results)
+rm(granger_results)
+
+```
+
+
+## Hypothèse 3 : Homoscédasticité 
+
+<br>
+
+Nous avons appliqué les tests de **Breusch-Pagan** et de **White** pour détecter l’hétéroscédasticité. Ces tests permettent de vérifier si la variance des erreurs est constante, une condition essentielle pour que les estimateurs des moindres carrés ordinaires (*OLS*) soient efficaces et non biaisés.
+
+**Tests appliqués :**
+
+- **Test de Breusch-Pagan** : Évalue si la variance des erreurs dépend des variables explicatives.
+- **Test de White** : Détecte des formes plus générales d’hétéroscédasticité sans spécifier une structure particulière.
+
+En cas de confirmation de l’hétéroscédasticité, nous envisageons d'utiliser les solutions suivantes :
+
+- **Erreurs standard robustes de White** : Ajustent les erreurs types pour tenir compte de l’hétéroscédasticité, permettant une inférence fiable malgré sa présence. :contentReference[oaicite:0]{index=0}
+
+- **Erreurs robustes de Newey-West** : Traitent simultanément l’hétéroscédasticité et l’autocorrélation, offrant des estimations robustes des erreurs types dans ces conditions.
+
+- **Modèle des moindres carrés généralisés (*GLS*)** : Corrige à la fois l’hétéroscédasticité et l’autocorrélation en adaptant la structure des erreurs, améliorant ainsi l'efficacité des estimateurs.
+
+Ces approches visent à assurer la validité des inférences statistiques en présence d’hétéroscédasticité, garantissant des estimations fiables et précises.
+
+<br>
+
+```{r homo, include=FALSE }
+# Chargement des données et ajustement du modèle
+
+library(readxl)
+library(dplyr)
+library(ggplot2)
+library(writexl)
+library(lmtest)
+
+variables_explicatives_ols <- setdiff(colnames(data_work4_log_out), c("Temps", "fec"))
+formule_ols <- as.formula(paste("fec ~", paste(variables_explicatives_ols, collapse = " + ")))
+
+# Ajustement du modèle
+model_final <- lm(formule_ols, data = data_work4_log_out)
+
+# Extraction des résidus et des valeurs ajustées
+residus <- residuals(model_final)
+valeurs_ajustees <- fitted(model_final)
+
+
+```
+
+## Visualisation de la forme de la possible hétéroscédascitité
+
+```{r Visualisation de la forme hetero, include=TRUE}
+# Résidus vs Valeurs ajustées
+ggplot(data.frame(valeurs_ajustees, residus), aes(x = valeurs_ajustees, y = residus)) +
+  geom_point(color = "blue", alpha = 0.7) +
+  geom_smooth(method = "loess", se = FALSE, color = "red", linetype = "dashed") +
+  theme_minimal() +
+  labs(
+    title = "Graphique des résidus vs valeurs ajustées",
+    x = "Valeurs ajustées",
+    y = "Résidus"
+  )
+```
+
+## Test de Breush Pagan
+
+```{r Breush Pagan, include=TRUE }
+cat("\n--- Test de Breusch-Pagan ---\n")
+
+# Détail de la régression auxiliaire
+bp_model <- lm(residus^2 ~ ., data = data_work4_log_out[, variables_explicatives_ols])
+summary_bp <- summary(bp_model)
+
+cat("\nRésumé de la régression auxiliaire :\n")
+print(summary_bp)
+
+# Test de Breusch-Pagan
+test_bp <- bptest(model_final)
+
+cat("Statistique du test :", round(test_bp$statistic, 3), "\n")
+cat("P-value :", round(test_bp$p.value, 5), "\n")
+
+if (test_bp$p.value > 0.05) {
+  cat("H₀ est vérifiée : pas d'évidence d'hétéroscédasticité (Breusch-Pagan).\n")
+} else {
+  cat("H₀ est rejetée : présence d'hétéroscédasticité (Breusch-Pagan).\n")
+}
+
+
+```
+
+<br>
+
+**Interprétation :**
+
+Étant donné que la p-valeur (0,15691) est supérieure au seuil de signification couramment utilisé (0,05), nous ne rejetons pas l'hypothèse nulle d'homoscédasticité. **Cela suggère que les résidus du modèle présentent une variance constante, indiquant l'absence d'hétéroscédasticité significative**.
+
+<br>
+
+## Test de White 
+```{r Test de White, include=TRUE}
+
+cat("\n--- Test de White ---\n")
+
+# Régression auxiliaire pour le test de White
+white_model <- lm(residus^2 ~ poly(valeurs_ajustees, 2), data = data.frame(residus, fitted(model_final)))
+summary_white <- summary(white_model)
+
+cat("\nRésumé de la régression auxiliaire (White) :\n")
+print(summary_white)
+
+# Statistique de White
+white_stat <- summary_white$r.squared * nrow(data_work4_log_out)  # Statistique chi-carré basée sur le R²
+white_pval <- pchisq(white_stat, df = 2, lower.tail = FALSE)  # Degré de liberté = 2 (termes quadratiques)
+
+cat("Statistique du test :", round(white_stat, 3), "\n")
+cat("P-value :", round(white_pval, 5), "\n")
+
+if (white_pval > 0.05) {
+  cat("H₀ est vérifiée : pas d'évidence d'hétéroscédasticité (White).\n")
+} else {
+  cat("H₀ est rejetée : présence d'hétéroscédasticité (White).\n")
+}
+
+
+```
+<br>
+
+Étant donné que la p-valeur (0,09419) est supérieure au seuil de signification couramment utilisé (0,05), nous ne rejetons pas l'hypothèse nulle d'homoscédasticité. **Cela suggère que les résidus du modèle présentent une variance constante, indiquant l'absence d'hétéroscédasticité significative**.
+
+Ainsi, les estimateurs obtenus par la méthode des moindres carrés ordinaires (OLS) restent efficaces et non biaisés, et il n'est pas nécessaire d'apporter des ajustements supplémentaires pour corriger l'hétéroscédasticité.
+
+<br>
+
+## Conclusion
+```{r Résumé : Homoscédasticité, include=TRUE}
+cat("\n### Résumé des tests d’hétéroscédasticité ###\n")
+cat("- Breusch-Pagan : ", ifelse(test_bp$p.value > 0.05, "Homoscédasticité", "Hétéroscédasticité"), "\n")
+cat("- White : ", ifelse(white_pval > 0.05, "Homoscédasticité", "Hétéroscédasticité"), "\n")
+```
+
+<br>
+
+*Nous constatons que l’hétéroscédasticité observée lors de nos premières régressions a finalement disparu. Ce problème a été résolu principalement grâce à un choix judicieux des variables et à la suppression des outliers*.
+
+<br>
+
+---
+
+# Hypothèse 4 : Non-autocorrélation des erreurs
+
+<br>
+
+Nous avons appliqué le **test de Durbin-Watson** pour détecter l'autocorrélation des erreurs, et le **test de Breusch-Pagan** pour identifier l'hétéroscédasticité dans notre modèle. Ces tests sont essentiels pour vérifier que les erreurs résiduelles ne sont pas corrélées entre elles et que leur variance est constante, conditions nécessaires pour satisfaire les hypothèses de Gauss-Markov et assurer l'efficacité des estimateurs des moindres carrés ordinaires (OLS).
+
+<br>
+
+```{r auto, include=FALSE }
+library(car)
+library(stats)
+library(dplyr)
+library(purrr)
+library(lmtest)
+library(forecast)
+library(readxl)
+library(tseries)
+
+# Définition de la formule du modèle
+variables_explicatives_ols <- setdiff(colnames(data_work4_log_out), c("Temps", "fec"))
+formule_ols <- as.formula(paste("fec ~", paste(variables_explicatives_ols, collapse = " + ")))
+
+# Ajustement du modèle OLS
+model_final <- lm(formule_ols, data = data_work4_log_out)
+
+# Extraction des résidus du modèle
+residuals_final <- residuals(model_final)
+
+
+# Calcul des ACF et PACF sans plot direct
+acf_res <- acf(residuals_final, plot = FALSE)
+pacf_res <- pacf(residuals_final, plot = FALSE)
+
+# Tableau ACF
+acf_values <- data.frame(
+  Lag = 1:length(acf_res$acf[-1]),  
+  Autocorrelation = round(acf_res$acf[-1], 4) 
+)
+
+cat("\n--- Tableau des autocorrélations (ACF) ---\n")
+print(acf_values)
+
+# Tableau PACF
+pacf_values <- data.frame(
+  Lag = 1:length(pacf_res$acf),
+  Partial_Autocorrelation = round(pacf_res$acf, 4)
+)
+
+cat("\n--- Tableau des autocorrélations partielles (PACF) ---\n")
+print(pacf_values)
+
+```
+ 
+## Visualisation de la forme d'autocorrélation
+
+```{r Visualisation de la forme auto, include=TRUE}
+# Visualisation des ACF et PACF
+plot(acf_res, main = "ACF des résidus", xlab = "Lags", ylab = "Autocorrélation")
+plot(pacf_res, main = "PACF des résidus", xlab = "Lags", ylab = "Autocorrélation partielle")
+```
+
+<br>
+
+Les résultats de nos tests **ADF** et **PACF** indiquent une autocorrélation significative à plusieurs décalages, révélant une dépendance temporelle structurelle dans les données.
+
+<br>
+
+## Test DW, d'odre 1 
+
+```{r DW test, include=TRUE}
+# Test de Durbin-Watson (autocorrélation d'ordre 1)
+cat("\n--- Test Durbin-Watson ---\n")
+dw_test <- tryCatch(durbinWatsonTest(model_final), error = function(e) NULL)
+print(dw_test)
+str(dw_test)
+
+# Interprétation standard
+# DW = 2 => Pas d'autocorrélation
+# DW < 2 => Autocorrélation positive
+# DW > 2 => Autocorrélation négative
+
+if (!is.null(dw_test)) {
+  dw_stat <- dw_test$dw    # Extraction de la statistique Durbin-Watson
+  dw_p_value <- dw_test$p  # Extraction de la p-value
+  
+  cat("Durbin-Watson Statistic :", round(dw_stat, 4), "\n")
+  cat("p-value :", round(dw_p_value, 4), "\n")
+  
+  if (!is.na(dw_stat)) {
+    if (dw_stat < 2) {
+      cat("Conclusion : Les résidus suggèrent une autocorrélation positive.\n")
+    } else if (dw_stat > 2) {
+      cat("Conclusion : Les résidus suggèrent une autocorrélation négative.\n")
+    } else {
+      cat("Conclusion : Les résidus ne présentent pas d'autocorrélation significative d'ordre 1.\n")
+    }
+  } else {
+    cat("La statistique Durbin-Watson est indisponible (NA).\n")
+  }
+  
+} else {
+  cat("Le test Durbin-Watson n'a pas pu être exécuté.\n")
+}
+
+```
+
+<br>
+
+Le **test de Durbin-Watson** confirme une autocorrélation des erreurs d'ordre 1. Pour déterminer si cette autocorrélation s'étend à des ordres supérieurs, nous procéderons à des analyses supplémentaires.
+ 
+<br>
+
+## Test Breusch-Goldfrey (d'odre 40 = 10 ans)
+
+```{r Test BG, include=TRUE}
+cat("\n--- Test d'autocorrélation d'ordre 40 (Breusch-Godfrey) ---\n")
+
+bg_test <- tryCatch({
+  bgtest(model_final, order = 40)
+}, error = function(e) {
+  cat("Erreur lors de l'exécution du test de Breusch-Godfrey : ", e$message, "\n")
+  return(NULL)
+})
+
+if (!is.null(bg_test)) {
+  # Afficher tous les détails de l'objet bg_test
+  print(bg_test)
+  
+  # Extraction des résultats
+  bg_stat <- bg_test$statistic
+  bg_p_value <- bg_test$p.value
+  bg_df <- bg_test$parameter  # Degrés de liberté
+  
+  # Affichage détaillé
+  cat("\n--- Détails du test de Breusch-Godfrey ---\n")
+  cat("Statistique du test :", round(bg_stat, 4), "\n")
+  cat("Degrés de liberté :", bg_df, "\n")
+  cat("P-value :", round(bg_p_value, 4), "\n")
+  
+  # Interprétation du test
+  # H0 : Pas d'autocorrélation jusqu'à l'ordre spécifié
+  # H1 : Présence d'autocorrélation jusqu'à l'ordre spécifié
+  if (bg_p_value > 0.05) {
+    cat("Conclusion : Pas d'autocorrélation significative jusqu'à l'ordre 40 (on ne rejette pas H0).\n")
+  } else {
+    cat("Conclusion : Autocorrélation significative détectée jusqu'à l'ordre 40 (on rejette H0).\n")
+  }
+  
+  # Ajout d'une recommandation pour améliorer le modèle
+  cat("\n--- Recommandation ---\n")
+  if (bg_p_value <= 0.05) {
+    cat("Il est conseillé d'ajuster un modèle prenant en compte cette autocorrélation, par exemple via un modèle ARIMA ou une correction robuste des erreurs standard.\n")
+  } else {
+    cat("Le modèle semble adapté du point de vue de l'autocorrélation.\n")
+  }
+} else {
+  cat("Le test Breusch-Godfrey n'a pas pu être exécuté.\n")
+}
+
+```
+
+<br>
+
+Notre analyse révèle une autocorrélation significative, persistante sur une période de 10 ans. Pour remédier à ce problème, nous envisageons d'utiliser un modèle **ARIMA**. Cependant, ce type de modèle nécessite une maîtrise précise des paramètres d'autorégression et une évaluation rigoureuse de la stationnarité et de la saisonnalité des données.
+
+<br>
+
+--- 
+
+## Conditions pour établir le bon modèle ARIMA - Vérifier la Saisonnalité et la Stationarité
+
+## Check Stationarité KPSS
+
+```{r Check Stationarité KPSS, include=TRUE}
+ 
+ts_residuals <- ts(residuals_final, frequency = 4)
+cat("\n--- Vérification de la stationnarité (KPSS Test) ---\n")
+kpss_test <- kpss.test(ts_residuals)
+cat("Statistique KPSS :", round(kpss_test$statistic, 4), "\n")
+cat("P-value :", round(kpss_test$p.value, 4), "\n")
+
+if (kpss_test$p.value > 0.05) {
+  cat("Conclusion : Les résidus sont stationnaires selon le test KPSS.\n")
+} else {
+  cat("Conclusion : Les résidus ne sont pas stationnaires selon le test KPSS.\n")
+}
+
+```
+
+```{r Test de saisonnalité, include=TRUE}
+
+# Test de saisonnalité
+cat("\n--- Vérification de la saisonnalité ---\n")
+seasonality_test <- kruskal.test(ts_residuals ~ cycle(ts_residuals))
+cat("Statistique du test Kruskal-Wallis :", round(seasonality_test$statistic, 4), "\n")
+cat("P-value :", round(seasonality_test$p.value, 4), "\n")
+
+if (seasonality_test$p.value < 0.05) {
+  cat("Conclusion : Les résidus montrent une saisonnalité significative.\n")
+} else {
+  cat("Conclusion : Pas de saisonnalité significative détectée.\n")
+}
+```
+
+<br>
+
+Nous avons observé une absence de saisonnalité et la présence d'une stationnarité dans nos données, ce qui nous permet d'utiliser l'autorégression **ARIMA**.
+
+Nous avons opté pour un modèle **ARIMA(4,0,0)**, avec les paramètres suivants :
+
+- **Lag** : 4, correspondant à des variables trimestrielles après interpolation.
+
+- **Stationnarité** : 0, indiquant que la série est déjà stationnaire.
+
+- **Saisonnalité** : 0, confirmée par des tests indiquant l'absence de composante saisonnière.
+
+<br>
+
+```{r ARIMA, include=TRUE}
+cat("\n--- Ajustement du modèle ARIMA(4,0,0) ---\n")
+
+# Ajustement du modèle ARIMA(4,0,0)
+arima_model_400 <- arima(
+  residuals_final,
+  order = c(4, 0, 0),  # ARIMA(p=4, d=0, q=0)
+  include.mean = TRUE  # Inclure une constante si nécessaire
+)
+
+# Résumé du modèle ARIMA
+cat("\nRésumé du modèle ARIMA(4,0,0) :\n")
+print(summary(arima_model_400))
+
+# Extraction des résidus corrigés
+arima_residuals <- residuals(arima_model_400)
+
+```
+
+<br>
+
+Pour évaluer l'efficacité du modèle **ARIMA(4,0,0)** dans la correction de l'autocorrélation, nous analyserons les résidus du modèle ajusté. Une absence d'autocorrélation dans ces résidus indiquerait que le modèle a correctement capturé la structure temporelle des données.
+
+<br>
+
+## Graphes ACF/PCF
+
+```{r ACF corrigés, include=TRUE}
+# ACF et PACF des résidus corrigés
+acf(arima_residuals, main = "ACF des résidus corrigés")
+pacf(arima_residuals, main = "PACF des résidus corrigés")
+```
+
+<br>
+
+Visuellement ça sent très bon !
+
+<br>
+
+## Ljung-Box Test sur les résidus corigés 
+
+```{r Ljung-Box, include=TRUE}
+# Test de Ljung-Box sur les résidus corrigés
+ljung_box_arima <- Box.test(arima_residuals, lag = 40, type = "Ljung-Box")
+
+cat("Statistique Ljung-Box :", round(ljung_box_arima$statistic, 4), "\n")
+cat("P-value :", round(ljung_box_arima$p.value, 4), "\n")
+
+if (ljung_box_arima$p.value > 0.05) {
+  cat("Conclusion : Les résidus du modèle ARIMA ne présentent pas d'autocorrélation significative.\n")
+} else {
+  cat("Conclusion : Les résidus présentent encore une autocorrélation significative. Une révision du modèle ARIMA est nécessaire.\n")
+}
+```
+
+
+## Test de Dubrin-Watson sur les résidus corrigés 
+
+```{r DW2 TEST, include=TRUE}
+
+dw_test_corrected <- durbinWatsonTest(lm(arima_residuals ~ 1))
+
+# Affichage des résultats
+print(dw_test_corrected)
+
+# Interprétation de la p-value
+if (dw_test_corrected$p > 0.05) {
+  cat("H0 acceptée : Pas d'autocorrélation d'ordre 1 détectée.\n")
+} else {
+  cat("H0 rejetée : Présence d'autocorrélation d'ordre 1 détectée.\n")
+}
+
+```
+
+<br>
+
+**Conclusion :** Les analyses graphiques, ainsi que les tests de **Ljung-Box** et de **Durbin-Watson**, confirment la disparition des problèmes d'autocorrélation. Ainsi, toutes nos hypothèses sont désormais vérifiées.
+
+<br>
+
+```{r Résidus corrigés, include=FALSE}
+
+cat("\n--- Création du nouveau dataframe avec résidus corrigés ---\n")
+# Créer un nouveau dataframe avec les résidus corrigés
+data_work_final_auto <- data_work4_log_out
+data_work_final_auto$residuals_corriges <- arima_residuals
+
+# Affichage des premières lignes du dataframe
+print(head(data_work_final_auto))
+
+```
+
+
+# VI. Conclusion générale 
+
+## Régression finale avec résidus corrigés 
+
+```{r Reg avec résidus corrigés, include=FALSE}
+
+cat("\n--- Nouvelle régression OLS avec données corrigées ---\n")
+
+# Modèle avec les nouvelles données corrigées
+formule_ols <- as.formula(paste("fec ~", paste(variables_explicatives_ols, collapse = " + ")))
+model_final_corrige <- lm(formule_ols, data = data_work_final_auto)
+
+# Comparaison des coefficients
+cat("\n--- Comparaison des coefficients OLS avant et après correction ---\n")
+coeff_ancien <- coef(model_final)  # Coefficients du modèle initial
+coeff_corrige <- coef(model_final_corrige)  # Coefficients du modèle corrigé
+
+# Création d'un tableau comparatif
+comparaison_coeff <- data.frame(
+  Coefficients_anciens = coeff_ancien,
+  Coefficients_corriges = coeff_corrige
+)
+```
+ 
+```{r OLS corrigé, include=TRUE}
+# Résumé du nouveau modèle OLS
+summary_ols_corrige <- summary(model_final_corrige)
+print(summary_ols_corrige)
+```
+
+## Comparaison des coefficients OLS avant et après correction de l'autocorrélation. 
+
+```{r Comparaison avant et après correction, include=TRUE} 
+print(comparaison_coeff)
+```
+
+# Inférence finale
+
+Après avoir vérifié que les hypothèses classiques (Gauss-Markov et normalité des résidus) étaient satisfaites, nous disposons désormais d’un modèle final fiable, permettant d’effectuer des inférences valables sur la variation du taux de fécondité, considérée hors tendance. Il est important de rappeler que 50,44 % de la variation du taux de fécondité est expliquée par une tendance à long terme, et que l’objectif de cette étude s’est concentré sur la part inexploitée et inexpliquée des fluctuations à court terme. La variable dépendante (**'fec'**) représente la variation périodique de la natalité, et les variables explicatives sont transformées en logarithmes, facilitant une interprétation directe en termes d'élasticité.
+
+Sur le plan statistique, le modèle présente un **R²** d’environ 0,72 (R² ajusté à 0,68), ce qui indique un pouvoir explicatif raisonnable des fluctuations de la fécondité à court terme, indépendamment de la tendance à long terme. L’interprétation en élasticité suggère qu’une variation de 1 % d’une variable explicative entraîne, *ceteris paribus*, une variation proportionnelle de la fécondité selon le coefficient estimé.
+
+<br>
+
+## Résultats empiriques
+
+Concernant les résultats empiriques, plusieurs variables se révèlent particulièrement significatives :
+
+- **Impact positif** :  
+  - **Taux d’emploi des femmes** : Contrairement aux idées reçues, une augmentation du taux d’emploi des femmes est associée à une hausse significative de la fécondité. Cela pourrait s'expliquer par un meilleur équilibre entre vie professionnelle et familiale, favorisé par des politiques de soutien (congés parentaux, crèches, flexibilité) qui permettent aux femmes actives de prendre des décisions parentales plus sereines aujourd'hui.  
+  - **Performance de la bourse** : Une amélioration des performances boursières favorise la fécondité, probablement en raison de son rôle comme indicateur de confiance économique, incitant les ménages à envisager des projets à long terme, tels que la parentalité.  
+  - **IVG pour 100 naissances** : Bien que surprenant et contre-intuitif, une hausse du recours à l’IVG est positivement corrélée avec la fécondité. Cela peut refléter des conditions où un meilleur accès à la contraception et aux services de santé reproductive (comme dans les pays scandinaves) permet aux individus de planifier leurs grossesses de manière plus réfléchie, conduisant à un environnement familial plus favorable pour élever des enfants.  
+  - **Opinion sur le futur niveau de vie** : Une perception optimiste du niveau de vie futur favorise la fécondité, car les attentes économiques positives incitent les ménages à envisager la parentalité dans un cadre perçu comme stable et sécurisant.  
+  - **Spécialisation professionnelle des femmes cadres** : Une augmentation de la proportion de femmes cadres est associée à une hausse de la fécondité. Cela peut sembler contre-intuitif, mais un contexte où de plus en plus de femmes occupent des postes qualifiés peut refléter des environnements de travail plus inclusifs et favorables à la conciliation vie professionnelle-vie familiale (télétravail, congés adaptés). En outre, les femmes cadres, bénéficiant d’une meilleure sécurité économique et de ressources suffisantes, peuvent se sentir davantage en mesure de fonder une famille.  
+
+<br>
+
+- **Impact négatif** :  
+  - **Prix des loyers** : Une augmentation des prix des loyers est fortement corrélée à une baisse de la fécondité, soulignant que les contraintes liées au logement jouent un rôle clé dans les décisions reproductives, notamment dans les zones où l’accès à des logements abordables est limité.  
+  - **Opinion sur le niveau de vie passé** : Une perception d’amélioration du niveau de vie au cours des dix dernières années est associée à une baisse de la fécondité. Cela pourrait indiquer que les individus ayant connu une ascension sociale ou économique récente préfèrent investir dans d'autres priorités (éducation, carrière, patrimoine) au lieu de s'engager dans des projets parentaux.  
+
+<br>
+
+- **Variables marginalement significatives** :  
+  - **Emploi précaire (CDD, Intérim etc..)** : L’augmentation de la proportion d’emplois précaires est positivement liée à la fécondité, mais sa significativité reste marginale. Cela pourrait refléter que certains ménages s’adaptent en choisissant des emplois plus flexibles pour équilibrer leurs responsabilités familiales.  
+  - **Études supérieures** : Une hausse de la proportion de personnes ayant poursuivi des études supérieures est associée à une légère baisse de la fécondité, bien que la significativité soit faible. Cela pourrait refléter des choix différés de parentalité en raison des coûts d’opportunité élevés.  
+
+<br>
+
+- **Variables non significatives** :  
+  - **Opinion sur l’inflation** et **opinion sur l’insécurité** : Ces variables ne montrent pas d’effet significatif sur la variation de la fécondité.  
+  - **Taux de nuptialité** : L’absence d’impact significatif du taux de nuptialité pourrait refléter la séparation croissante entre mariage et décisions parentales.  
+
+<br>
+
+## Limites du modèle
+
+*Malgré sa robustesse*, le modèle présente certaines limites :  
+
+- **Généralisation incertaine** : Les résultats, issus d’un contexte temporel et géographique spécifique, ne sont pas nécessairement extrapolables à d’autres situations.  
+- **Sélection des variables explicatives** : Bien que les variables incluses soient économiquement pertinentes, d’autres facteurs non observés pourraient jouer un rôle dans la dynamique de la fécondité.  
+
+## Conclusion
+
+En définitive, ce travail met en évidence l’influence de divers déterminants économiques et sociaux sur la variation hors tendance du taux de fécondité et propose un cadre analytique solide pour en comprendre les mécanismes. Toutefois, il convient de rester prudent quant à la portée des résultats, qui dépendent de la qualité des hypothèses, de la disponibilité des données et de la spécificité du contexte étudié.  
+
+---
+
+
+
