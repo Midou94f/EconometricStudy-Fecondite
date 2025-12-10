@@ -1,12 +1,7 @@
 ########## CODE FINAL ############## : ANALYSE DES DETERMINANTS DU TAUX DE FECONDITÉ EN FRANCE
-### ANDREA CHAHWAN 
-#### NICLETTE NDAYA NSABUA
-###### LAURIANE DELPONT
-########## MEHDI FEHRI
+########## ROMAIN MEHDI FEHRI
 
 ##### M1 APE 
-
-
 
 # Chargement des librairies
 library(readxl)
