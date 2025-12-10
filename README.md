@@ -97,7 +97,7 @@ library(sandwich)
 - Possibles variables omises
 
 ## Auteur
-Romain Fehri
+Romain Mehdi Fehri
 
 ## Date
 20 Décembre 2024
